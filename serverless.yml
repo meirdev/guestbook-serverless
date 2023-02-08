@@ -1,0 +1,90 @@
+service: guestbook-project
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: python3.9
+  environment:
+    DYNAMODB_TABLE: ${self:service}-${sls:stage}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+          Resource: "arn:aws:dynamodb:${aws:region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+
+functions:
+  create:
+    handler: guestbook/create.create
+    events:
+      - httpApi:
+          path: /guestbook
+          method: post
+
+  read_one:
+    handler: guestbook/read_one.read
+    events:
+      - httpApi:
+          path: /guestbook/{id}
+          method: get
+
+  read_all:
+    handler: guestbook/read_all.read
+    events:
+      - httpApi:
+          path: /guestbook
+          method: get
+
+  update:
+    handler: guestbook/update.update
+    events:
+      - httpApi:
+          path: /guestbook/{id}
+          method: put
+
+  delete:
+    handler: guestbook/delete.delete
+    events:
+      - httpApi:
+          path: /guestbook/{id}
+          method: delete
+
+plugins:
+  - serverless-dynamodb-local
+  - serverless-python-requirements
+  - serverless-offline
+
+custom:
+  dynamodb:
+    start:
+      migrate: true
+    stages:
+      - dev
+  pythonRequirements:
+    dockerizePip: true
+
+resources:
+  Resources:
+    GuestbookDynamoDbTable:
+      Type: "AWS::DynamoDB::Table"
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+        TableName: ${self:provider.environment.DYNAMODB_TABLE}
+
+package:
+  patterns:
+    - '!node_modules/**'
+    - '!venv/**'
+    - '!.dynamodb/**'
